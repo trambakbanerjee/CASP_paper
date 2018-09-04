@@ -13,4 +13,9 @@ References
 =======
 [1.] Improved Shrinkage Prediction under a Spiked Covariance Structure    
 Banerjee, T., Mukherjee, G. and Paul, D.
+
 [2.] Baik, J. and J. W. Silverstein (2006). Eigenvalues of large sample covariance matrices of spiked population models. Journal of Multivariate Analysis 97(6), 1382–1408.
+
+[3.] Onatski, A. (2012). Asymptotics of the principal components estimator of large factor models with weakly influential factors. Journal of Econometrics 168(2), 244–258.
+
+[4.] Paul, D. (2007). Asymptotics of sample eigenstructure for a large dimensional spiked covariance model. Statistica Sinica, 1617–1642.
