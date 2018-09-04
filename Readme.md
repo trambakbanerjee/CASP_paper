@@ -1,10 +1,7 @@
 What is CASP?
 ======
 
-CASP (Coordinate-wise Adaptive Shrinkage Prediction) is a novel shrinkage rule for prediction in a high-dimensional non-exchangeable hierar-
-chical Gaussian model with an unknown spiked covariance structure. CASP uses results on the behavior of eigenvalues and eigenvectors of
-high-dimensional sample covariance matrix (Baik and Silverstein, 2006, Onatski, 2012, Paul, 2007), to
-develop a bias-correction principle that leads to an efficient approach for evaluating the Bayes predictors corresponding to popular loss functions such as
+CASP (Coordinate-wise Adaptive Shrinkage Prediction) is a novel shrinkage rule for prediction in a high-dimensional non-exchangeable hierarchical Gaussian model with an unknown spiked covariance structure. CASP uses results on the behavior of eigenvalues and eigenvectors of high-dimensional sample covariance matrix (Baik and Silverstein, 2006, Onatski, 2012, Paul, 2007), to develop a bias-correction principle that leads to an efficient approach for evaluating the Bayes predictors corresponding to popular loss functions such as
 quadratic, generalized absolute, and linex losses.
 
 How to use this repository?
@@ -16,3 +13,4 @@ References
 =======
 [1.] Improved Shrinkage Prediction under a Spiked Covariance Structure    
 Banerjee, T., Mukherjee, G. and Paul, D.
+[2.] Baik, J. and J. W. Silverstein (2006). Eigenvalues of large sample covariance matrices of spiked population models. Journal of Multivariate Analysis 97(6), 1382–1408.
