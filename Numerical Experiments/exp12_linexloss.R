@@ -1,20 +1,19 @@
 
-#Experiment 1 - scenario 2
+# Experiment 1 - scenario 2
 
 source('linexloss.R')
 source('spikelib.R')
-  
+
 require(ggplot2)
 require(gridExtra)
 require(Matrix)
 library(foreach)
 library(doParallel)
-library(RGeode)
 
 gen.spikedcov<-function(n,mz,m.0,K,l0,tau,beta){
   
   #1. Generate the n x n spiked covariance matrix 
-  spikes<-seq(25,10,length.out = K)
+  spikes<-seq(25,5,length.out = K)
 
   set.seed(1)
   A<- matrix(runif(n^2,1,2),n,n)
@@ -28,12 +27,23 @@ gen.spikedcov<-function(n,mz,m.0,K,l0,tau,beta){
 
   }
   Sigma<- Sigma+l0*(diag(n)-temp)
+  # set.seed(1)
+  # B<- matrix(rnorm(n*K,0,0.5),n,K)
+  # Sigma<-B%*%t(B)+l0*diag(n)
+  
   
   spd<-eigen(Sigma)
   p<-spd$vectors
   temp<- diag((spd$values)^beta)
   Sigma.theta<- tau*(p%*%temp%*%t(p))
   SigmaY<- (1/m.0)*Sigma
+  
+  # set.seed(1)
+  # Z<- mvrnorm(mz,rep(0,n),Sigma)
+  # S<- cov(Z)*(mz/(mz-1))
+  # 
+  # return(list("Sigma"=Sigma,"S"=S,"Sigma.Y"=SigmaY,
+  #             "Sigma.theta"=Sigma.theta,"W"=Z))
   
   return(list("Sigma"=Sigma,"Sigma.Y"=SigmaY,
               "Sigma.theta"=Sigma.theta))
@@ -55,18 +65,18 @@ n<- 200 # dimensionality
 K.true<- 10
 l0<-1
 set.seed(1)
-a<- runif(n,-2,-1)#linex loss parameters
-b<- rep(1,n)#linex loss parameters
+a<- runif(n,-2,-1)#check loss parameters
+b<- rep(1,n)#check loss parameters
 m<-1 # sample sizes
 Mz<- seq(15,50,5)
 m.0<- 1 # sample size for future data Y
-reps<- 600
-ineff.n<- 20
-tau<-0.01
-beta<-2
+reps<- 500
+tau<-1
+beta<-1.75
 eta<-rep(0,n)
-tau.grid<-c(0.01,0.05,0.1,0.25,0.5,0.75)
-beta.grid<-c(1,1.25,1.5,1.75,2,2.5)
+tau.grid<-c(0.6,0.7,0.8,0.9,1)
+beta.grid<-c(1.5,1.6,1.7,1.8,1.9,2)
+
 
 #----Initialization ------------------------
 taubeta.grid<- cbind(rep(tau.grid,each = length(beta.grid)),
@@ -75,15 +85,18 @@ taubeta.grid<- cbind(rep(tau.grid,each = length(beta.grid)),
 taubeta.estimated<-array(rep(0,length(Mz)*5*2),
                          c(length(Mz),5,2))
 
+taubeta.std<-taubeta.estimated
 
 factors.estimated<-matrix(0,length(Mz),5)
+factors.std<-factors.estimated
 shrink.f<-matrix(0,n,reps)
-ineff.q<-matrix(0,ineff.n,length(Mz))
+ineff.q<-matrix(0,length(Mz),1)
 ineff.naive<-ineff.q
 ineff.Bcv<-ineff.q
 ineff.poet<-ineff.q
 ineff.fact<-ineff.q
-risk.avg<-matrix(0,ineff.n,7)
+risk.avg<-array(rep(0,length(Mz)*reps*7),
+                c(length(Mz),reps,7))
 
 #--- Computation  ------------------------------------
 for(i in 1:length(Mz)){
@@ -94,7 +107,7 @@ for(i in 1:length(Mz)){
   
   out.rmtBayes<- rmt.est(K.true,out.Sigma$Sigma,mz,0)
   
-  cl <- makeCluster(8)
+  cl <- makeCluster(10)
   registerDoParallel(cl)
   
   result<-foreach(N = 1:reps,.export=c("mvrnorm","EsaBcv","POET","Factmle_cov"))%dopar%{
@@ -195,76 +208,83 @@ for(i in 1:length(Mz)){
     rowMeans(sapply(1:reps,function(i) result[[i]]$taubeta[4,])),
     rowMeans(sapply(1:reps,function(i) result[[i]]$taubeta[5,])))
   
+  taubeta.std[i,,]<- rbind(
+    apply(sapply(1:reps,function(j) result[[j]]$taubeta[1,]),1,sd),
+    apply(sapply(1:reps,function(j) result[[j]]$taubeta[2,]),1,sd),
+    apply(sapply(1:reps,function(j) result[[j]]$taubeta[3,]),1,sd),
+    apply(sapply(1:reps,function(j) result[[j]]$taubeta[4,]),1,sd),
+    apply(sapply(1:reps,function(j) result[[j]]$taubeta[5,]),1,sd))/sqrt(reps)
+  
   factors.estimated[i,]<- rowMeans(sapply(1:reps,function(j) result[[j]]$nfactors))
+  factors.std[i,]<- apply(sapply(1:reps,function(j) result[[j]]$nfactors),1,sd)/sqrt(reps)
   
   if(i == 1){
     result.i1<-result
     shrink.f<- cbind(sapply(1:reps,function(j) result[[j]]$f))
   }
   
-  for (kk in 1:ineff.n){
-    s<- 1+30*(kk-1)
-    e<- kk*30
-    risk.avg[kk,]<-c(mean(temprisk.Bayes[s:e]),mean(temprisk.q[s:e]),
-                     mean(temprisk.1[s:e]),mean(temprisk.naive[s:e]),
-                     mean(temprisk.Bcv[s:e]),mean(temprisk.poet[s:e]),
-                     mean(temprisk.fact[s:e]))
-  }
-  ineff.q[,i]<- (risk.avg[,2]-risk.avg[,1])/(risk.avg[,3]-risk.avg[,1])
-  ineff.naive[,i]<- (risk.avg[,4]-risk.avg[,1])/(risk.avg[,3]-risk.avg[,1])
-  ineff.Bcv[,i]<- (risk.avg[,5]-risk.avg[,1])/(risk.avg[,3]-risk.avg[,1])
-  ineff.poet[,i]<- (risk.avg[,6]-risk.avg[,1])/(risk.avg[,3]-risk.avg[,1])
-  ineff.fact[,i]<- (risk.avg[,7]-risk.avg[,1])/(risk.avg[,3]-risk.avg[,1])
+  risk.avg[i,,]<-c(temprisk.Bayes,temprisk.q,temprisk.1,
+                   temprisk.naive,temprisk.Bcv,
+                   temprisk.poet,temprisk.fact)
+  tt<-colMeans(risk.avg[i,,])
+  risk.diff<-tt[3]-tt[1]
+  ineff.q[i]<- (tt[2]-tt[1])/risk.diff
+  ineff.naive[i]<- (tt[4]-tt[1])/risk.diff
+  ineff.Bcv[i]<- (tt[5]-tt[1])/risk.diff
+  ineff.poet[i]<- (tt[6]-tt[1])/risk.diff
+  ineff.fact[i]<- (tt[7]-tt[1])/risk.diff
   print(i)
 }
-save.image(paste(getwd(),'/final simulations in paper/exp12_linexloss_new.RData',sep=''))
 
-ineff.mat<- c(colMeans(ineff.q),colMeans(ineff.naive),
-              colMeans(ineff.Bcv),colMeans(ineff.fact))
-name<- rep(c('CASPR','Naive','Bcv','FactMLE'),each=8)
+ ineff.mat<- c(ineff.q,ineff.naive,ineff.Bcv,ineff.fact)
+ name<- rep(c('CASP','Naive','Bcv','FactMLE'),each=8)
 
-shrink<- as.data.frame(rowMeans(shrink.f))
-names(shrink)<- "f"
-shrink$lower<- sapply(1:n,function(i) quantile(shrink.f[i,],0.10))
-shrink$upper<- sapply(1:n,function(i) quantile(shrink.f[i,],0.90))
-sorted.f<- order(shrink$f)
-shrink$f<-shrink$f[sorted.f]
-shrink$lower<-shrink$lower[sorted.f]
-shrink$upper<-shrink$upper[sorted.f]
-shrink$dim<- 1:n
+ shrink<- as.data.frame(rowMeans(shrink.f))
+ names(shrink)<- "f"
+ shrink$lower<- sapply(1:n,function(i) quantile(shrink.f[i,],0.10))
+ shrink$upper<- sapply(1:n,function(i) quantile(shrink.f[i,],0.90))
+ sorted.f<- order(shrink$f)
+ shrink$f<-shrink$f[sorted.f]
+ shrink$lower<-shrink$lower[sorted.f]
+ shrink$upper<-shrink$upper[sorted.f]
+ shrink$dim<- 1:n
 
-plotdata1<- as.data.frame(ineff.mat)
-plotdata1$name<- factor(name)
-plotdata1$x<- rep(Mz,4)
-plotdata2<- as.data.frame(rep(1,8))
-plotdata2$x<- Mz
-names(plotdata2)<- c("Y","x")
-g1<-ggplot()+geom_line(data=plotdata2,aes(x = x, y = Y))+
-  geom_line(data=plotdata1, aes(x = x, y = ineff.mat,color=name))+
-  geom_point(data=plotdata1,aes(x = x, y = ineff.mat,color=name,
-                                shape=name))+
-  scale_x_continuous(breaks = Mz)+
-  scale_y_continuous(breaks = seq(0.9,2.5,by=0.1))+
-  xlab(expression(m))+ylab("REE")+theme_bw()+
-  theme(legend.position=c(0.85,0.25),legend.title=element_blank(),
-        legend.background = element_rect(fill="white",
-                                         size=1, linetype="solid", colour ="black"),
-        legend.text=element_text(size=12),
-        axis.text.x = element_text(size=15),
-        axis.text.y = element_text(size=15),
-        axis.title.x = element_text(size=15),
-        axis.title.y = element_text(size=15))
+ plotdata1<- as.data.frame(ineff.mat)
+ plotdata1$name<- factor(name)
+ plotdata1$x<- rep(Mz,4)
+ plotdata2<- as.data.frame(rep(1,8))
+ plotdata2$x<- Mz
+ names(plotdata2)<- c("Y","x")
+ g1<-ggplot()+geom_line(data=plotdata2,aes(x = x, y = Y),size=1.5)+
+   geom_line(data=plotdata1, aes(x = x, y = ineff.mat,color=name),size=1.5)+
+   geom_point(data=plotdata1,aes(x = x, y = ineff.mat,color=name,
+                                 shape=name),size=1.5)+
+   scale_x_continuous(breaks = Mz)+
+   scale_y_continuous(breaks = seq(0.95,5,by=0.5))+
+   xlab(expression(m))+ylab("REE")+theme_bw()+
+   theme(legend.position='top',legend.title=element_blank(),
+         legend.background = element_rect(fill="white",
+                                          size=1, linetype="solid", colour ="black"),
+         legend.text=element_text(size=20),
+         axis.text.x = element_text(size=20),
+         axis.text.y = element_text(size=20),
+         axis.title.x = element_text(size=20),
+         axis.title.y = element_text(size=20))
 
-g2<- ggplot()+geom_point(data=shrink,aes(x=dim,y=f),color="red")+
-  geom_line(data=shrink,aes(x=dim,y=f),color="red")+
-  geom_ribbon(data=shrink,aes(x=dim,ymin=lower,ymax=upper),alpha=0.5,fill="gray")+
-  ylab("Shrinkage factors")+xlab("Dimensions")+
-  theme_bw()+
-  theme(axis.text.x = element_text(size=15),
-        axis.text.y = element_text(size=15),
-        axis.title.x = element_text(size=15),
-        axis.title.y = element_text(size=15))
+ g2<- ggplot()+geom_point(data=shrink,aes(x=dim,y=f),color="red")+
+   geom_line(data=shrink,aes(x=dim,y=f),color="red",size=1.5)+
+   geom_ribbon(data=shrink,aes(x=dim,ymin=lower,ymax=upper),alpha=0.5,fill="gray")+
+   ylab("Shrinkage Factors")+xlab("Dimensions")+
+   theme_bw()+
+   theme(axis.text.x = element_text(size=20),
+         axis.text.y = element_text(size=20),
+         axis.title.x = element_text(size=20),
+         axis.title.y = element_text(size=20))
 
-grid.arrange(g1,g2,ncol=2)
-
+ grid.arrange(g1,g2,ncol=2)
+ rm('result')
+ save.image(paste(getwd(),'/exp12_linexloss.RData',sep=''))
+ 
+ g <- arrangeGrob(g1,g2, ncol=2) #generates g
+ ggsave(file="exp12linexloss.pdf", g,width = 35, height=15, units = "cm",dpi=500,scale=1)
 
