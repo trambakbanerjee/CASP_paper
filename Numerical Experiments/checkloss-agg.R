@@ -1,5 +1,3 @@
-#Holds functions for check loss (aggregate)
-
 require(MASS)
 require(far)
 require(esaBcv)
@@ -56,6 +54,40 @@ rmt.est<- function(K,S,m,type){
               "pj"=spd$vectors,"K"=K))
   
 }
+S.est<-function(S,K,m){
+  
+  n<- dim(S)[1]
+  rho<-n/(m-1)
+  spd<- eigen(S)
+  l.tilde<-spd$values
+  l0.tilde<- ((n-K)^{-1})*sum(l.tilde[(K+1):n])
+  pj.tilde<- spd$vectors
+  
+  out<- eigen.est(l.tilde,l0.tilde,rho,K)
+  l0.hat<-out$l0.hat
+  l.hat<-out$l.hat
+
+  zeta<-rep(1,K)
+  return(list("l0.hat"=l0.hat,"l.hat"=l.hat[1:K],"zeta"=zeta,
+              "pj"=pj.tilde,"K"=K))
+}
+S.est.naive<-function(S,K){
+  
+  n<- dim(S)[1]
+  rho<-n/(m-1)
+  spd<- eigen(S)
+  l.tilde<-spd$values
+  l0.tilde<- ((n-K$numOfSpikes)^{-1})*sum(l.tilde[(K$numOfSpikes+1):n])
+  pj.tilde<- spd$vectors
+  
+  l0.hat<-l0.tilde#out$l0.hat
+  l.hat<-l.tilde#out$l.hat
+  
+  zeta<-rep(1,K$numOfSpikes)
+  return(list("l0.hat"=l0.hat,"l.hat"=l.hat[1:K$numOfSpikes],"zeta"=zeta,
+              "pj"=pj.tilde,"K"=K$numOfSpikes))
+
+}
 S.est.naive.1<-function(S,K){
   
   n<- dim(S)[1]
@@ -79,6 +111,113 @@ S.est.naive.1<-function(S,K){
   #S.naive<- S.naive+l0.tilde*diag(n)
   
   return(S.naive)
+}
+
+S.est.GD<- function(S,m){
+  
+  n<- dim(S)[1]
+  gam<- n/m
+  lam1<- (1-sqrt(gam))^2
+  lam2<- (1+sqrt(gam))^2
+  
+  spd<- eigen(S,symmetric = TRUE)
+  p<- spd$vectors
+  lam<- spd$values
+  nl<- matrix(1,n,1)
+  c<- matrix(0,n,1)
+  s<- matrix(1,n,1)
+  el<- c
+  
+  idx<- (lam>lam2)
+  el[idx]<- 0.5*((lam[idx]+1-gam)+sqrt((lam[idx]+1-gam)^2-4*lam[idx]))
+  idy<- (el>=1+sqrt(gam))
+  
+  num<- 1-gam/(el[idy]-1)^2
+  den<- 1+gam/(el[idy]-1)
+  c[idy]<- sqrt(num/den)
+  s<- 1-c^2
+  
+  nl[idy]<- el[idy]*c[idy]^2+s
+  
+  S.GD<- matrix(0,n,n)
+  for(k in 1:n){
+    
+    S.GD<- nl[k]*(p[,k]%*%t(p[,k]))+S.GD
+    
+  }
+  
+  return(S.GD)
+  
+  
+  
+}
+
+S.est.OS<- function(Xtil, r) {
+
+  svdres <- svd(Xtil)
+  stil <- svdres$d
+  Stil <- diag(svdres$d)
+  
+  sigmahats <- stil[1:r]
+  Xnoise_est <- Stil[(r+1):nrow(Stil), (r+1):ncol(Stil)]
+  theta_hats <- numeric(r)
+  Dpz <- numeric(r)
+  wopt_hats <- numeric(r)
+  
+  for (idx in 1:r) {
+    theta_hats[idx] <- sqrt(1/estimateDz(Xnoise_est,sigmahats[idx]))
+    Dpz[idx] = estimateDpz(Xnoise_est,sigmahats[idx])
+    wopt_hats[idx] = -2/(theta_hats[idx]^2*Dpz[idx])
+  }
+  
+  Shat = svdres$u[,1:r] %*% diag(wopt_hats) %*% t(svdres$v[,1:r])
+  
+  relmse_hat <- 1 - sum(wopt_hats^2)/sum(theta_hats^2);
+  mse_hat <- relmse_hat*sum(theta_hats^2)
+  
+  S<- cov(Shat)+relmse_hat*diag(ncol(Xtil))
+  return(S)
+}
+estimateDz <- function(X, z) {
+  n <- nrow(X)
+  m <- ncol(X)
+  
+  In <- diag(n)
+  Im <- diag(m)
+  
+  
+  z2IXXt = z^2 * In - X %*% t(X)
+  z2IXtX = z^2 * Im - t(X) %*% X
+  invz2XtX = solve(z2IXtX)
+  invz2XXt = solve(z2IXXt)
+  
+  D1z = 1/n * sum(diag(z * invz2XXt))
+  D2z = 1/m * sum(diag(z * invz2XtX))
+  
+  D1z * D2z
+  
+}
+estimateDpz <- function(X, z) {
+  n <- nrow(X)
+  m <- ncol(X)
+  In <- diag(n)
+  Im <- diag(m)
+  
+  z2IXXt <- z^2 * In - X %*% t(X)
+  z2IXtX <- z^2 * Im - t(X) %*% X
+  
+  invz2XtX = solve(z2IXtX)
+  invz2XXt = solve(z2IXXt)
+  
+  D1z = 1/n * sum(diag(z * invz2XXt))
+  D2z = 1/m * sum(diag(z * invz2XtX))
+  
+  
+  D1zp = 1/n * sum(diag(-2 * z^2 * invz2XXt^2+invz2XXt))
+  D2zp = 1/m * sum(diag(-2 * z^2 * invz2XtX^2+invz2XtX))
+  
+  D1z * D2zp + D1zp * D2z
+  
 }
 
 eigen.est<-function(l,l.0,rho,K){

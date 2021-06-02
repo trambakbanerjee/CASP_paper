@@ -21,7 +21,7 @@ KN.test <- function(S, numObs, alpha = 0.05) {
     mu_np <- 1/numObs*(sqrt(numObs-1/2) + sqrt((p - spikes)-1/2))^2
     sigma_np <- sqrt(mu_np/numObs) * (1/sqrt(numObs-1/2) + 1 / sqrt((p-spikes)-1/2) )^(1/3)
     
-    sigma.sq.temp <- sigma.sq.est(lambdas,numObs,spikes) 
+    sigma.sq.temp <- sigma.sq.est.new(lambdas,numObs,spikes)#sigma.sq.est(lambdas,numObs,spikes) 
     if(lambdas[spikes] <= sigma.sq.temp*(mu_np + s_alpha * sigma_np)) break
     sigma.sq <- sigma.sq.temp
     #print(spikes)
@@ -86,6 +86,28 @@ sigma.sq.est <- function(lambdas , numObs, numOfSpikes) {
     sigma.sq.new <- 1/(p-numOfSpikes) * (sum(lambdas) - sum(rho))
     if (abs(sigma.sq.new - sigma.sq)/sigma.sq < 1e-8) break
     sigma.sq <- max(sigma.sq.new,1e-6)
+  }
+  
+  return(sigma.sq)
+}
+
+sigma.sq.est.new <- function(lambdas , numObs, numOfSpikes) {
+  
+  p <- length(lambdas)
+  sigma.sq <- 1/(p-numOfSpikes) * sum(lambdas[(numOfSpikes+1):p])
+  counter = 0
+  
+  while(TRUE) {
+    
+    tmp.b <- lambdas[1:numOfSpikes] + sigma.sq - sigma.sq*(p-numOfSpikes)/numObs 
+    discriminant <- tmp.b^2 - 4 * lambdas[1:numOfSpikes]*sigma.sq
+    if (any( discriminant < 0)) break
+    
+    rho <- 0.5*(tmp.b + sqrt(discriminant)) 
+    sigma.sq.new <- 1/(p-numOfSpikes) * (sum(lambdas) - sum(rho))
+    if (abs(sigma.sq.new - sigma.sq)/sigma.sq < 1e-8 || counter>500) break
+    sigma.sq <- max(sigma.sq.new,1e-6)
+    counter = counter+1
   }
   
   return(sigma.sq)

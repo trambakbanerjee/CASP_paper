@@ -399,6 +399,29 @@ taubeta.q.est<-function(grid.val,rmt,m,X){
   return(colMeans(grid.val[o[1:3],]))
   
 }
+taubeta.q.est.new<-function(grid.val,rmt,m,X){
+  
+  cv.taubeta<-matrix(0,nrow(grid.val),1)
+  if (m>1){
+    
+    X<-colMeans(X)
+  }
+  for (t in 1:nrow(grid.val)){
+    
+    ttau<- grid.val[t,1]
+    bbeta<-grid.val[t,2]
+    
+    S.q<-hfun.est(0,1,0,rmt,m,1)+ttau*hfun.est(0,bbeta,0,rmt,m,1)#(ttau)*hfun.est(-1,1+bbeta,bbeta,rmt,m,ttau)
+    Sinv.q<- chol2inv(chol(S.q))#(ttau)^{-1}*hfun.est(1,-1-bbeta,bbeta,rmt,m,ttau)
+    cv.taubeta[t]<- -0.5*log(det(S.q))-0.5*t(X)%*%Sinv.q%*%X
+    
+  }
+  o<- order(-cv.taubeta)
+  # A1<-sum(eigen(hfun.est(0,1,0,rmt,m,0.6))$values)
+  # A2<-0.6*sum(eigen(hfun.est(0,0.2,0,rmt,m,ttau))$values)
+  return(colMeans(grid.val[o[1:3],]))
+  
+}
 taubeta.est<-function(grid.val,S.val,m,X){
   
   cv.taubeta<-matrix(0,nrow(grid.val),1)

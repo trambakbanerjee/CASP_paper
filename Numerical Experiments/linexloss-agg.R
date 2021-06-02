@@ -1,4 +1,4 @@
-# Holds functions for Linex loss (aggregate)
+# Holds functions for Linex loss
 require(MASS)
 require(far)
 require(esaBcv)
@@ -129,6 +129,30 @@ q.est.agg<- function(rmt,A,X,a,tau,beta,eta,m,m.0,type){
   
   q<- term1+term2-term3*(a/2)
   return(list("q"=q,"f"=f,"G1"=G1,"G2"=G2,"G3"=G3))
+  
+}
+q.Bayes.aggol<- function(rmt,A,X,a,tau,beta,eta,m,m.0){
+  
+  q<- dim(A)[1]
+  f<- rep(1,q)
+  rmt$zeta<- rep(1,rmt$K)
+  
+  G1<- Gfun.est(A,1,-1,beta,tau,rmt,m)
+  G2<- Gfun.est(A,1,0,beta,tau,rmt,m)
+  G3<- Gfun.est(A,0,1,0,tau,rmt,m)
+  
+  term1<- A%*%eta
+  if(m>1){
+    term2<- f*(G1%*%A%*%(colMeans(X)-eta))
+  }
+  if(m==1){
+    term2<- f*(G1%*%A%*%(X-eta))
+  }
+  term3<- m^{-1}*diag(G2)+m.0^{-1}*diag(G3)
+  
+  q<- term1+term2-term3*(a/2)
+  
+  return(q)
   
 }
 q.Bayes.agg<- function(Sigma,A,X,a,tau,beta,eta,m,m.0){
@@ -441,8 +465,8 @@ taubeta.q.est<-function(grid.val,rmt,m,X){
     ttau<- grid.val[t,1]
     bbeta<-grid.val[t,2]
     
-    S.q<- g.est(out.rmt,bbeta,ttau,m)$G
-    Sinv.q<- g.est(out.rmt,bbeta,ttau,m)$Ginv
+    S.q<- g.est(rmt,bbeta,ttau,m)$G
+    Sinv.q<- g.est(rmt,bbeta,ttau,m)$Ginv
     cv.taubeta[t]<- -0.5*log(det(S.q))-0.5*t(X)%*%Sinv.q%*%X
     
   }
