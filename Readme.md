@@ -12,7 +12,7 @@ This repository holds the scripts that reproduce the analysis in the paper [1]. 
 References
 =======
 [1.] Improved Shrinkage Prediction under a Spiked Covariance Structure      
-Banerjee, T., Mukherjee, G. and Paul, D. (2021) _(under review)_
+Banerjee, T., Mukherjee, G. and Paul, D. Journal of Machine Learning Research 22, no. 1 (2021): 8154-8193.
 
 [2.] Baik, J. and J. W. Silverstein (2006). Eigenvalues of large sample covariance matrices of spiked population models. Journal of Multivariate Analysis 97(6), 1382–1408.
 
